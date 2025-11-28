@@ -1,0 +1,279 @@
+{
+  "name": "NAVI",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": "={{ [\"messages\"] }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.whatsAppTrigger",
+      "typeVersion": 1,
+      "position": [
+        576,
+        304
+      ],
+      "id": "7df442bb-2e2f-4744-815f-3f97976bea06",
+      "name": "WhatsApp Trigger",
+      "webhookId": "52a09844-3025-445f-bb6e-73399b7fc93d",
+      "credentials": {
+        "whatsAppTriggerApi": {
+          "id": "W2MlnJIREAQHDDpi",
+          "name": "WhatsApp OAuth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.messages[0].text.body }}",
+        "options": {
+          "systemMessage": "You are NAVI, a friendly cab-booking assistant for WhatsApp.\n\n**Rules for interaction:**\n\n1. **Greeting:**\n\n   * Always greet the user once at the start of the conversation:\n     \"Hi! I am NAVI, your cab-booking assistant. How can I help you today?\"\n   * Never greet the user more than once.\n\n2. **User input focus:**\n\n   * Only respond based on the user’s messages after the greeting.\n   * Keep messages polite, concise, and step-by-step.\n   * Only provide information relevant to cab booking and price comparison.\n\n3. **Resetting the chat:**\n\n   * If the user says \"No\", \"reset\", or any phrase indicating they want to start over, reset the conversation.\n   * Start over by greeting the user again:\n     \"Hi! I am NAVI, your cab-booking assistant. How can I help you today?\"\n\n**Booking flow:**\n\n1. Ask for pickup location:\n   \"Sure! Please tell me your pickup location.\"\n\n2. Ask for drop-off location:\n   \"Got it. Now, please tell me your drop-off location.\"\n\n3. Ask for vehicle type:\n   \"Thank you. Which type of vehicle would you like: 2-wheeler or 4-wheeler?\"\n\n4. Provide booking summary including:\n\n   * Pickup location\n   * Drop-off location\n   * Vehicle type\n   * Available cab options from Uber, Ola, Rapido\n   * Price and ETA for each option\n   * Highlight the cheapest option\n\n5. Ask for confirmation:\n   \"Do you want me to confirm the booking for you?\"\n\n**Booking confirmation and cancellation:**\n\n* If the user confirms, respond:\n  \"Your cab has been successfully booked! It will arrive at [pickup location] in [X minutes].\"\n* If the user requests cancellation (e.g., \"cancel my booking\"), respond:\n  \"Your booking has been canceled successfully.\"\n\n**Behavior notes:**\n\n* Only respond to the user’s current input.\n* Do not make assumptions beyond what the user provides.\n* Use mock data for price and ETA simulation.\n\n**Example conversation flow:**\n\n* User: Hi\n  NAVI: Hi! I am NAVI, your cab-booking assistant. How can I help you today?\n* User: I want to book a cab\n  NAVI: Sure! Please tell me your pickup location.\n* User: 123 Main Street\n  NAVI: Got it. Now, please tell me your drop-off location.\n* User: 456 Park Avenue\n  NAVI: Thank you. Which type of vehicle would you like: 2-wheeler or 4-wheeler?\n* User: 4-wheeler\n  NAVI: Here is your booking summary: …\n* User: Confirm\n  NAVI: Your cab has been successfully booked! It will arrive at 123 Main Street in 8 minutes.\n* User: Cancel my booking\n  NAVI: Your booking has been canceled successfully.\n* User: Reset\n  NAVI: Hi! I am NAVI, your cab-booking assistant. How can I help you today?\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        832,
+        304
+      ],
+      "id": "5646282a-03b0-468b-92cd-1bf27b10e4e2",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        960,
+        576
+      ],
+      "id": "c9d1cb46-1886-4f27-aa0b-9c329ac7f913",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "G127u1cM54S0lhF2",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "867205269813895",
+        "recipientPhoneNumber": "=+91 6377064259",
+        "textBody": "={{ $('AI Agent').item.json.output }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        1504,
+        304
+      ],
+      "id": "f621bc89-3b75-43e6-81bf-a1a50f8543cd",
+      "name": "Send message",
+      "webhookId": "7e73d315-c345-49d7-822d-830d5963c64d",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "lkoxFCcV6AFelNBA",
+          "name": "WhatsApp account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{$json[\"messages\"][0][\"from\"]}}\n",
+        "contextWindowLength": 10
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        1584,
+        576
+      ],
+      "id": "02605dc5-ed07-4aa6-ac0b-6177730aad01",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "jsCode": "const session = $json[\"session\"] || {};\nconst userMessage = $json[\"message\"]?.trim();\nconst responses = [];\n\n// Step 1: Greet the user once\nif (!session.greeted) {\n    responses.push(\"Hi! I am NAVI, your cab-booking assistant. How can I help you today?\");\n    session.greeted = true;\n} else {\n    // Only start booking flow if user explicitly says they want to book a cab\n    const messageLower = userMessage.toLowerCase();\n    if (messageLower.includes(\"book\") || messageLower.includes(\"cab\") || messageLower.includes(\"ride\")) {\n\n        if (!session.pickup) {\n            responses.push(\"Sure! Please tell me your pickup location.\");\n        } else if (!session.dropoff) {\n            session.pickup = userMessage;\n            responses.push(\"Got it. Now, please tell me your drop-off location.\");\n        } else if (!session.vehicle_type) {\n            session.dropoff = userMessage;\n            responses.push(\"Thank you. Which type of vehicle would you like: 2-wheeler or 4-wheeler?\");\n        } else if (!session.completed) {\n            session.vehicle_type = userMessage;\n\n            // Mock cab options\n            const mockData = {\n                Uber: [\n                    { display_name: \"Go\", estimate: \"₹120-₹150\", duration: 900 },\n                    { display_name: \"Moto\", estimate: \"₹80-₹100\", duration: 600 }\n                ],\n                Ola: [\n                    { display_name: \"Mini\", estimate: \"₹130-₹160\", duration: 950 },\n                    { display_name: \"Auto\", estimate: \"₹90-₹110\", duration: 700 }\n                ],\n                Rapido: [\n                    { display_name: \"Bike\", estimate: \"₹100-₹120\", duration: 650 }\n                ]\n            };\n\n            // Find cheapest for each app\n            function getCheapest(rides) {\n                return rides.reduce((a, b) => {\n                    const aMin = parseFloat(a.estimate.replace(/[^0-9.-]+/g, \"\").split(\"-\")[0]);\n                    const bMin = parseFloat(b.estimate.replace(/[^0-9.-]+/g, \"\").split(\"-\")[0]);\n                    return bMin < aMin ? b : a;\n                });\n            }\n\n            const allCheapest = [];\n            for (const app of [\"Uber\",\"Ola\",\"Rapido\"]) {\n                const ride = getCheapest(mockData[app]);\n                allCheapest.push({ app, ...ride });\n            }\n\n            // Overall cheapest\n            let overallCheapest = allCheapest[0];\n            for (const ride of allCheapest) {\n                const rideMin = parseFloat(ride.estimate.replace(/[^0-9.-]+/g, \"\").split(\"-\")[0]);\n                const overallMin = parseFloat(overallCheapest.estimate.replace(/[^0-9.-]+/g, \"\").split(\"-\")[0]);\n                if (rideMin < overallMin) overallCheapest = ride;\n            }\n\n            // Build summary\n            let summary = `Here is your booking summary:\\nPickup: ${session.pickup}\\nDrop-off: ${session.dropoff}\\nVehicle: ${session.vehicle_type}\\n\\nAvailable cab options:\\n`;\n            allCheapest.forEach(r => {\n                summary += `- ${r.app} ${r.display_name}: ${r.estimate}, ETA: ${Math.ceil(r.duration/60)} min\\n`;\n            });\n            summary += `\\nCheapest option: ${overallCheapest.app} ${overallCheapest.display_name}: ${overallCheapest.estimate}, ETA: ${Math.ceil(overallCheapest.duration/60)} min\\n`;\n            summary += \"\\nDo you want me to confirm the booking for you?\";\n\n            responses.push(summary);\n            session.completed = true;\n        }\n\n    } else {\n        // If user says something else, respond politely\n        responses.push(\"Hello! To start booking a cab, please type 'book cab' or 'I want a ride'.\");\n    }\n}\n\nreturn [\n    {\n        json: {\n            responses,\n            session\n        }\n    }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        304
+      ],
+      "id": "59e9ea82-7816-4b7d-9baa-67476c2e0ce2",
+      "name": "Mock Trial"
+    },
+    {
+      "parameters": {
+        "content": "## WhatsApp Trigger\n\n**Purpose:** Starts the workflow when a WhatsApp message is received.\n\n**What it does:**\n- Listens for incoming WhatsApp messages\n- Captures user messages and sender information\n- Triggers the workflow automatically when messages arrive",
+        "height": 504,
+        "width": 280,
+        "color": 2
+      },
+      "id": "856a6115-3d6b-4561-870f-8fd182f4b9d6",
+      "name": "Note 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        496,
+        -32
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## AI Agent\n\n**Purpose:** The brain of NAVI - processes user messages and generates intelligent responses.\n\n**What it does:**\n- Receives user messages from WhatsApp\n- Uses Google Gemini AI to understand intent\n- Follows conversation flow (pickup → dropoff → vehicle type)\n- Generates contextual responses\n- Maintains conversation state with memory",
+        "height": 512,
+        "width": 328,
+        "color": 3
+      },
+      "id": "d645c842-589c-4c99-b201-7d0684824b2e",
+      "name": "Note 2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        784,
+        -32
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Google Gemini Chat Model\n\n**Purpose:** Provides AI language capabilities to the agent.\n\n**What it does:**\n- Powers the AI Agent with natural language understanding\n- Generates human-like conversational responses\n- Processes user intent and context\n- Uses Google Gemini 2.5 Flash model",
+        "height": 252,
+        "width": 600,
+        "color": 4
+      },
+      "id": "dd3e7947-883f-47ef-94db-c10df7178028",
+      "name": "Note 3",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        496,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Simple Memory\n\n**Purpose:** Remembers conversation history for context.\n\n**What it does:**\n- Stores last 10 messages per user session\n- Enables follow-up questions and context awareness\n- Tracks conversation flow across messages\n- Uses WhatsApp sender ID to separate user sessions",
+        "height": 252,
+        "width": 616,
+        "color": 5
+      },
+      "id": "9c903a42-7a0a-41dc-a75e-3c9c126825e2",
+      "name": "Note 4",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1104,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Mock Trial\n\n**Purpose:** Generates mock cab pricing and options (for testing).\n\n**What it does:**\n- Creates simulated cab prices for Uber, Ola, Rapido\n- Calculates cheapest option\n- Generates booking summary with prices and ETAs\n- Returns formatted response data\n\n**Note:** Replace with real API calls in production",
+        "height": 512,
+        "width": 264,
+        "color": 6
+      },
+      "id": "65bcbfa0-95e2-4077-9c2b-1b43ed4a452e",
+      "name": "Note 5",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        -32
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Send Message\n\n**Purpose:** Sends the AI response back to the user on WhatsApp.\n\n**What it does:**\n- Takes the AI Agent output\n- Formats it as a WhatsApp message\n- Sends to the user who initiated the conversation\n- Completes the conversation loop",
+        "height": 504,
+        "width": 328,
+        "color": 7
+      },
+      "id": "c324788f-6f4d-4713-bcd6-944827175e96",
+      "name": "Note 6",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1392,
+        -32
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "WhatsApp Trigger": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Mock Trial",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mock Trial": {
+      "main": [
+        [
+          {
+            "node": "Send message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "33b7814f-c253-43af-b212-0496f5750ed7",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ce6fffc33b3ff7176a392c3bc7814108ed623a27b4b131cf1657b39de1f3210e"
+  },
+  "id": "Kj561l2IZPmP1tuC",
+  "tags": []
+}
